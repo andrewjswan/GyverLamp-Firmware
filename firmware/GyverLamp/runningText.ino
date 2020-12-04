@@ -5,7 +5,7 @@
 #define MIRR_V                (0U)                          // отразить текст по вертикали (0 / 1)
 #define MIRR_H                (0U)                          // отразить текст по горизонтали (0 / 1)
 
-#define TEXT_HEIGHT           (0U)                          // высота, на которой бежит текст (от низа матрицы)
+#define TEXT_HEIGHT           (2U)                          // высота, на которой бежит текст (от низа матрицы)
 #define LET_WIDTH             (5U)                          // ширина буквы шрифта
 #define LET_HEIGHT            (8U)                          // высота буквы шрифта
 #define SPACE                 (1U)                          // пробел
@@ -17,21 +17,17 @@
 int16_t offset = WIDTH;
 uint32_t scrollTimer = 0LL;
 
-
-bool fillString(const char* text, CRGB letterColor)
+boolean fillString(const char* text, CRGB letterColor, boolean itsText)
 {
-  if (!text || !strlen(text))
-  {
-    return true;
-  }
-
-  if (loadingFlag)
-  {
+  //CRGB letterColor = CHSV(modes[EFF_TEXT].Scale * 2.5 * 2.5, 255U, 255U);
+//Serial.println(text);
+  if (!text || !strlen(text)) { return true; }
+  if (loadingFlag && !itsText) {
     offset = WIDTH;                                         // перемотка в правый край
     loadingFlag = false;
   }
 
-  if (millis() - scrollTimer >= 100)
+  if (millis() - scrollTimer >= modes[EFF_TEXT].Speed)
   {
     scrollTimer = millis();
     FastLED.clear();
@@ -65,11 +61,13 @@ bool fillString(const char* text, CRGB letterColor)
 
 void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периодический вывод времени бегущей строкой; onDemand - по требованию, вывод текущего времени; иначе - вывод времени по расписанию
 {
-  #if defined(USE_NTP) && defined(PRINT_TIME)               // вывод, только если используется синхронизация времени и если заказан его вывод бегущей строкой
+  //#if defined(USE_NTP) && defined(PRINT_TIME)               // вывод, только если используется синхронизация времени и если заказан его вывод бегущей строкой
+  #if defined(USE_NTP) && defined(PRINT_TIME) || defined(USE_MANUAL_TIME_SETTING) && defined(PRINT_TIME)
 
-  if (espMode != 1U || !ntpServerAddressResolved || !timeSynched)     // вывод только в режиме WiFi клиента и только, если имя сервера времени разрезолвлено
+//  if (espMode != 1U || !ntpServerAddressResolved || !timeSynched)     // вывод только в режиме WiFi клиента и только, если имя сервера времени разрезолвлено
+  if (!timeSynched)     // хз зачем было так сложно
   {
-    showWarning(CRGB::Red, 4000U, 500U);                    // мигание красным цветом 4 секунды - смена рабочего режима лампы, перезагрузка
+    showWarning(CRGB::Red, 4000U, 500U);                    // мигание красным цветом 4 секунды
     return;
   }
 
@@ -80,7 +78,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   if (thisTime % 60U == 0U)
   {
     needToPrint = true;
-    letterColor = CRGB::White;                              // Белым!
+    letterColor = CRGB::Red;
   }
   #endif
 
@@ -133,7 +131,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   {
     lastTimePrinted = thisTime;
     char stringTime[10U];                                   // буффер для выводимого текста, его длина должна быть НЕ МЕНЬШЕ, чем длина текста + 1
-    sprintf_P(stringTime, PSTR("* %u:%02u *"), (uint8_t)((thisTime - thisTime % 60U) / 60U), (uint8_t)(thisTime % 60U));
+    sprintf_P(stringTime, PSTR("-> %u:%02u"), (uint8_t)((thisTime - thisTime % 60U) / 60U), (uint8_t)(thisTime % 60U));
     loadingFlag = true;
     FastLED.setBrightness(getBrightnessForPrintTime(thisTime, ONflag));
     delay(1);
@@ -142,7 +140,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
     digitalWrite(MOSFET_PIN, MOSFET_LEVEL);
     #endif
 
-    while (!fillString(stringTime, letterColor)) { delay(1); ESP.wdtFeed(); }
+    while (!fillString(stringTime, letterColor, false)) { delay(1); ESP.wdtFeed(); }
 
     #if defined(MOSFET_PIN) && defined(MOSFET_LEVEL)        // установка сигнала в пин, управляющий MOSFET транзистором, соответственно состоянию вкл/выкл матрицы или будильника
     digitalWrite(MOSFET_PIN, ONflag || (dawnFlag && !manualOff) ? MOSFET_LEVEL : !MOSFET_LEVEL);
@@ -158,9 +156,11 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
 uint8_t getBrightnessForPrintTime(uint32_t thisTime, bool ONflag)     // определение яркости для вывода времени бегущей строкой в зависимости от ESP_MODE, USE_NTP, успешности синхронизации времени,
                                                                       // текущего времени суток, настроек дневного/ночного времени и того, включена ли сейчас матрица
 {
-  #if defined(USE_NTP) && defined(PRINT_TIME)
+  //#if defined(USE_NTP) && defined(PRINT_TIME)
+  #if defined(USE_NTP) && defined(PRINT_TIME) || defined(USE_MANUAL_TIME_SETTING) && defined(PRINT_TIME)
 
-  if (espMode != 1U || !ntpServerAddressResolved || ONflag)
+  //if (espMode != 1U || !ntpServerAddressResolved || ONflag)
+  if (!timeSynched || ONflag)     // хз зачем было так сложно
   {
     return modes[currentMode].Brightness;
   }
@@ -196,6 +196,7 @@ uint8_t getBrightnessForPrintTime(uint32_t thisTime, bool ONflag)     // опр�
 
 void drawLetter(uint8_t letter, int8_t offset, CRGB letterColor)
 {
+ 
   uint8_t start_pos = 0, finish_pos = LET_WIDTH;
 
   if (offset < (int8_t)-LET_WIDTH || offset > (int8_t)WIDTH)
@@ -210,7 +211,6 @@ void drawLetter(uint8_t letter, int8_t offset, CRGB letterColor)
   {
     finish_pos = (uint8_t)(WIDTH - offset);
   }
-
   for (uint8_t i = start_pos; i < finish_pos; i++)
   {
     uint8_t thisByte;
@@ -234,7 +234,7 @@ void drawLetter(uint8_t letter, int8_t offset, CRGB letterColor)
       {
         if (thisBit)
         {
-          leds[getPixelNumber(offset + i, TEXT_HEIGHT + j)] = letterColor;
+          leds[XY(offset + i, TEXT_HEIGHT + j)] = letterColor;
         }
         else
         {
@@ -245,7 +245,7 @@ void drawLetter(uint8_t letter, int8_t offset, CRGB letterColor)
       {
         if (thisBit)
         {
-          leds[getPixelNumber(i, offset + TEXT_HEIGHT + j)] = letterColor;
+          leds[XY(i, offset + TEXT_HEIGHT + j)] = letterColor;
         }
         else
         {

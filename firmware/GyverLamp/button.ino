@@ -40,19 +40,22 @@ void buttonTick()
       MqttManager::needToPublish = true;
     }
     #endif
+    #ifdef USE_BLYNK
+    updateRemoteBlynkParams();
+    #endif
   }
 
 
   // двухкратное нажатие
   if (ONflag && clickCount == 2U)
   {
-    if (++currentMode >= (int8_t)MODE_AMOUNT) currentMode = 0;
+    if (++currentMode >= MODE_AMOUNT) currentMode = 0;
     FastLED.setBrightness(modes[currentMode].Brightness);
     loadingFlag = true;
     settChanged = true;
     eepromTimeout = millis();
-    FastLED.clear();
-    delay(1);
+    //FastLED.clear();
+    //delay(1);
 
     #if (USE_MQTT)
     if (espMode == 1U)
@@ -60,25 +63,31 @@ void buttonTick()
       MqttManager::needToPublish = true;
     }
     #endif
+    #ifdef USE_BLYNK
+    updateRemoteBlynkParams();
+    #endif
   }
 
 
   // трёхкратное нажатие
   if (ONflag && clickCount == 3U)
   {
-    if (--currentMode < 0) currentMode = MODE_AMOUNT - 1;
+    if (--currentMode >= MODE_AMOUNT) currentMode = MODE_AMOUNT - 1;
     FastLED.setBrightness(modes[currentMode].Brightness);
     loadingFlag = true;
     settChanged = true;
     eepromTimeout = millis();
-    FastLED.clear();
-    delay(1);
+    //FastLED.clear();
+    //delay(1);
 
     #if (USE_MQTT)
     if (espMode == 1U)
     {
       MqttManager::needToPublish = true;
     }
+    #endif
+    #ifdef USE_BLYNK
+    updateRemoteBlynkParams();
     #endif
   }
 
@@ -91,8 +100,8 @@ void buttonTick()
     {
       ONflag = true;
       currentMode = EFF_MATRIX;                             // принудительное включение режима "Матрица" для индикации перехода в режим обновления по воздуху
-      FastLED.clear();
-      delay(1);
+      //FastLED.clear();
+      //delay(1);
       changePower();
     }
     #endif
@@ -110,7 +119,7 @@ void buttonTick()
       digitalWrite(MOSFET_PIN, MOSFET_LEVEL);
       #endif
 
-      while(!fillString(WiFi.localIP().toString().c_str(), CRGB::White)) { delay(1); ESP.wdtFeed(); }
+      while(!fillString(WiFi.localIP().toString().c_str(), CRGB::White, false)) { delay(1); ESP.wdtFeed(); }
 
       #if defined(MOSFET_PIN) && defined(MOSFET_LEVEL)      // установка сигнала в пин, управляющий MOSFET транзистором, соответственно состоянию вкл/выкл матрицы или будильника
       digitalWrite(MOSFET_PIN, ONflag || (dawnFlag && !manualOff) ? MOSFET_LEVEL : !MOSFET_LEVEL);
@@ -129,7 +138,7 @@ void buttonTick()
 
 
   // семикратное нажатие
-  if (ONflag && clickCount == 7U)                           // смена рабочего режима лампы: с WiFi точки доступа на WiFi клиент или наоборот
+  if (clickCount == 7U)  // if (ONflag &&                   // смена рабочего режима лампы: с WiFi точки доступа на WiFi клиент или наоборот
   {
     espMode = (espMode == 0U) ? 1U : 0U;
     EepromManager::SaveEspMode(&espMode);
@@ -220,6 +229,11 @@ void buttonTick()
       MqttManager::needToPublish = true;
     }
     #endif
+    
+    #ifdef USE_BLYNK
+    updateRemoteBlynkParams();
+    #endif
+    
   }
 }
 #endif

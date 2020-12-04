@@ -32,6 +32,10 @@ class TimerManager
         changePower();
         *settChanged = true;
         *eepromTimeout = millis();
+
+//        #ifdef USE_BLYNK короче, раз в Блинке нет управления таймером, то и это мы поддерживать не будем
+//        updateRemoteBlynkParams();
+//        #endif
       }
     }
 };

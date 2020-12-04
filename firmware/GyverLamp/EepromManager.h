@@ -86,15 +86,17 @@
 class EepromManager
 {
   public:
-    static void InitEepromSettings(ModeType modes[], AlarmType alarms[], uint8_t* espMode, bool* onFlag, uint8_t* dawnMode, int8_t* currentMode, bool* buttonEnabled,
-      void (*readFavoritesSettings)(), void (*saveFavoritesSettings)())
+    static void InitEepromSettings(ModeType modes[], AlarmType alarms[], uint8_t* espMode, bool* onFlag, uint8_t* dawnMode, uint8_t* currentMode, bool* buttonEnabled,
+      void (*readFavoritesSettings)(), void (*saveFavoritesSettings)(), void (*restoreDefaultSettings)())
     {
-      // записываем в EEPROM начальное состояние настроек, если их там ещё нет
       EEPROM.begin(EEPROM_TOTAL_BYTES_USED);
       delay(50);
 
+      // записываем в EEPROM начальное состояние настроек, если их там ещё нет
       if (EEPROM.read(EEPROM_FIRST_RUN_ADDRESS) != EEPROM_FIRST_RUN_MARK)
       {
+        restoreDefaultSettings(); // а почему бы нам не восстановить настройки по умолчанию в этом месте?
+
         EEPROM.write(EEPROM_FIRST_RUN_ADDRESS, EEPROM_FIRST_RUN_MARK);
         EEPROM.commit();
 
@@ -137,19 +139,23 @@ class EepromManager
       readFavoritesSettings();
 
       *espMode = (uint8_t)EEPROM.read(EEPROM_ESP_MODE);
+#ifdef DONT_TURN_ON_AFTER_SHUTDOWN
+      *onFlag = false;
+#else
       *onFlag = (bool)EEPROM.read(EEPROM_LAMP_ON_ADDRESS);
+#endif
       *dawnMode = EEPROM.read(EEPROM_DAWN_MODE_ADDRESS);
       *currentMode = EEPROM.read(EEPROM_CURRENT_MODE_ADDRESS);
       *buttonEnabled = EEPROM.read(EEPROM_ESP_BUTTON_ENABLED_ADDRESS);
     }
 
-    static void SaveModesSettings(int8_t* currentMode, ModeType modes[])
+    static void SaveModesSettings(uint8_t* currentMode, ModeType modes[])
     {
       EEPROM.put(EEPROM_MODES_START_ADDRESS + EEPROM_MODE_STRUCT_SIZE * (*currentMode), modes[*currentMode]);
       EEPROM.commit();
     }
     
-    static void HandleEepromTick(bool* settChanged, uint32_t* eepromTimeout, bool* onFlag, int8_t* currentMode, ModeType modes[], void (*saveFavoritesSettings)())
+    static void HandleEepromTick(bool* settChanged, uint32_t* eepromTimeout, bool* onFlag, uint8_t* currentMode, ModeType modes[], void (*saveFavoritesSettings)())
     {
       if (*settChanged && millis() - *eepromTimeout > EEPROM_WRITE_DELAY)
       {
@@ -181,8 +187,10 @@ class EepromManager
 
     static void SaveOnFlag(bool* onFlag)
     {
+#ifndef DONT_TURN_ON_AFTER_SHUTDOWN
       EEPROM.write(EEPROM_LAMP_ON_ADDRESS, *onFlag);
       EEPROM.commit();
+#endif
     }
 
     static void SaveDawnMode(uint8_t* dawnMode)
