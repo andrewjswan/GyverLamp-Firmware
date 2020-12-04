@@ -344,6 +344,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       }
       #endif
     }
+
     else if (!strncmp_P(inputBuffer, PSTR("GBR"), 3)) // выставляем общую яркость для всех эффектов без сохранения в EEPROM, если приложение присылает такую строку
     {
       memcpy(buff, &inputBuffer[3], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 4
@@ -354,6 +355,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       FastLED.setBrightness(ALLbri);
       loadingFlag = true;
     }    
+
     else if (!strncmp_P(inputBuffer, PSTR("LIST"), 4)) // передача списка эффектов по запросу от приложения (если поддерживается приложением)
     {
        memcpy(buff, &inputBuffer[4], strlen(inputBuffer));  // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 5
@@ -395,6 +397,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
            }
          }
     }
+
     else if (!strncmp_P(inputBuffer, PSTR("TXT"), 3)){     // Принимаем текст для бегущей строки
       #if defined(USE_SECRET_COMMANDS) || defined(USE_MANUAL_TIME_SETTING) // вкорячиваем ручную синхранизацию времени пока что сюда. пока нет другой функции в приложении...
         if (!strncmp_P(inputBuffer, PSTR("TXT-time="), 9) && (BUFF.length() > 15)){ 
@@ -577,14 +580,23 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
         str.toCharArray(TextTicker, str.length() + 1);
       #endif // defined(USE_SECRET_COMMANDS) || defined(USE_MANUAL_TIME_SETTING)
     }
+
+    else if (!strncmp_P(inputBuffer, PSTR("MSG"), 3)) {
+      String str = (BUFF.length() > 4) ? BUFF.substring(4, BUFF.length()) : "";
+      str.toCharArray(TextTicker, str.length() + 1);
+      printMessage();
+    }
+
     else if (!strncmp_P(inputBuffer, PSTR("DRW"), 3)) {
       drawPixelXY((int8_t)getValue(BUFF, ';', 1).toInt(), (int8_t)getValue(BUFF, ';', 2).toInt(), DriwingColor);
       FastLED.show();
     }
+
     else if (!strncmp_P(inputBuffer, PSTR("CLR"), 3)) {
       FastLED.clear();
       FastLED.show();
     }
+
     else if (!strncmp_P(inputBuffer, PSTR("COL"), 3)) {
       #ifdef USE_OLD_APP_FROM_KOTEYKA
        DriwingColor = CRGB(getValue(BUFF, ';', 1).toInt(), getValue(BUFF, ';', 3).toInt(), getValue(BUFF, ';', 2).toInt());
@@ -592,6 +604,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
        DriwingColor = CRGB(getValue(BUFF, ';', 1).toInt(), getValue(BUFF, ';', 2).toInt(), getValue(BUFF, ';', 3).toInt());
       #endif
     }
+
     else if (!strncmp_P(inputBuffer, PSTR("DRAWO"), 5)) { // сокращаем OFF и ON для ускорения регулярного цикла
       if (!strncmp_P(inputBuffer, PSTR("DRAWON"), 6))
        Painting = 1;
@@ -600,6 +613,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       FastLED.clear();
       FastLED.show();
     }
+
 #ifndef USE_OLD_APP_FROM_KOTEYKA
     else if (!strncmp_P(inputBuffer, PSTR("RESET"), 5)) { // сброс настроек WIFI по запросу от приложения
       wifiManager.resetSettings();
@@ -632,6 +646,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       }
     }
 #endif
+
     else
     {
       inputBuffer[0] = '\0';

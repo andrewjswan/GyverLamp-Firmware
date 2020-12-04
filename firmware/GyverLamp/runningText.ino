@@ -74,15 +74,15 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   CRGB letterColor = CRGB::Black;
   bool needToPrint = false;
   
-  #if (PRINT_TIME >= 1U)                                    // вывод только каждый час (красным цветом)
+  #if (PRINT_TIME >= 1U)                                    // вывод только каждый час (белым цветом)
   if (thisTime % 60U == 0U)
   {
     needToPrint = true;
-    letterColor = CRGB::Red;
+    letterColor = CRGB::White;
   }
   #endif
 
-  #if (PRINT_TIME == 2U)                                    // вывод каждый час (красным цветом) + каждые 30 минут (синим цветом)
+  #if (PRINT_TIME == 2U)                                    // вывод каждый час (белым цветом) + каждые 30 минут (синим цветом)
   if (thisTime % 60U != 0U && thisTime % 30U == 0U)
   {
     needToPrint = true;
@@ -90,7 +90,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   }
   #endif
 
-  #if (PRINT_TIME == 3U)                                    // вывод каждый час (красным цветом) + каждые 15 минут (синим цветом)
+  #if (PRINT_TIME == 3U)                                    // вывод каждый час (белым цветом) + каждые 15 минут (синим цветом)
   if (thisTime % 60U != 0U && thisTime % 15U == 0U)
   {
     needToPrint = true;
@@ -98,7 +98,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   }
   #endif
 
-  #if (PRINT_TIME == 4U)                                    // вывод каждый час (красным цветом) + каждые 10 минут (синим цветом)
+  #if (PRINT_TIME == 4U)                                    // вывод каждый час (белым цветом) + каждые 10 минут (синим цветом)
   if (thisTime % 60U != 0U && thisTime % 10U == 0U)
   {
     needToPrint = true;
@@ -106,7 +106,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   }
   #endif
 
-  #if (PRINT_TIME == 5U)                                    // вывод каждый час (красным цветом) + каждые 5 минут (синим цветом)
+  #if (PRINT_TIME == 5U)                                    // вывод каждый час (белым цветом) + каждые 5 минут (синим цветом)
   if (thisTime % 60U != 0U && thisTime % 5U == 0U)
   {
     needToPrint = true;
@@ -114,7 +114,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   }
   #endif
 
-  #if (PRINT_TIME == 6U)                                    // вывод каждый час (красным цветом) + каждую минуту (синим цветом)
+  #if (PRINT_TIME == 6U)                                    // вывод каждый час (белым цветом) + каждую минуту (синим цветом)
   if (thisTime % 60U != 0U)
   {
     needToPrint = true;
@@ -124,14 +124,14 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
 
   if (onDemand)
   {
-    letterColor = CRGB::White;
+    letterColor = CRGB::White;                                // вывод по запросу с кнопки (белым цветом)
   }
 
   if ((needToPrint && thisTime != lastTimePrinted) || onDemand)
   {
     lastTimePrinted = thisTime;
     char stringTime[10U];                                   // буффер для выводимого текста, его длина должна быть НЕ МЕНЬШЕ, чем длина текста + 1
-    sprintf_P(stringTime, PSTR("-> %u:%02u"), (uint8_t)((thisTime - thisTime % 60U) / 60U), (uint8_t)(thisTime % 60U));
+    sprintf_P(stringTime, PSTR("* %u:%02u *"), (uint8_t)((thisTime - thisTime % 60U) / 60U), (uint8_t)(thisTime % 60U));
     loadingFlag = true;
     FastLED.setBrightness(getBrightnessForPrintTime(thisTime, ONflag));
     delay(1);
@@ -152,6 +152,20 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   #endif
 }
 
+void printMessage() // вывести полученное сообщение
+{
+  if (currentMode == EFF_TEXT)                              // если эффект - вывод строки то уходим
+  {
+    return;
+  }
+
+  loadingFlag = true;
+  FastLED.setBrightness(getBrightnessForPrintTime(thisTime, ONflag));
+  delay(1);
+
+  while (!fillString(TextTicker, CRGB::White, true)) { delay(1); ESP.wdtFeed(); }
+  loadingFlag = true;
+}
 
 uint8_t getBrightnessForPrintTime(uint32_t thisTime, bool ONflag)     // определение яркости для вывода времени бегущей строкой в зависимости от ESP_MODE, USE_NTP, успешности синхронизации времени,
                                                                       // текущего времени суток, настроек дневного/ночного времени и того, включена ли сейчас матрица

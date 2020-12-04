@@ -33,38 +33,40 @@ void timeTick()
     if (timeTimer.isReady())
     {
       #ifdef USE_NTP
-if (espMode == 1U){      
-      if (!timeSynched)
-      {
-        if (millis() - lastResolveTryMoment >= RESOLVE_INTERVAL || lastResolveTryMoment == 0)
+      if (espMode == 1U)
+      { 
+        if (!timeSynched)
         {
-          resolveNtpServerAddress(ntpServerAddressResolved);              // пытаемся получить IP адрес сервера времени (тест интернет подключения) до тех пор, пока время не будет успешно синхронизировано
-          lastResolveTryMoment = millis();
-          /* эта штука уже не отражает действительность
+          if (millis() - lastResolveTryMoment >= RESOLVE_INTERVAL || lastResolveTryMoment == 0)
+          {
+            resolveNtpServerAddress(ntpServerAddressResolved);              // пытаемся получить IP адрес сервера времени (тест интернет подключения) до тех пор, пока время не будет успешно синхронизировано
+            lastResolveTryMoment = millis();
+            /* эта штука уже не отражает действительность
+            if (!ntpServerAddressResolved)
+            {
+              //#ifdef GENERAL_DEBUG
+              #if defined(GENERAL_DEBUG) && !defined(USE_MANUAL_TIME_SETTING)
+              LOG.println(F("Функции будильника отключены до восстановления подключения к интернету"));
+              #endif
+            }
+            */
+          }
           if (!ntpServerAddressResolved)
           {
-            //#ifdef GENERAL_DEBUG
-            #if defined(GENERAL_DEBUG) && !defined(USE_MANUAL_TIME_SETTING)
-            LOG.println(F("Функции будильника отключены до восстановления подключения к интернету"));
-            #endif
+            return;                                                         // если нет интернет подключения, отключаем будильник до тех пор, пока оно не будет восстановлено
           }
-          */
         }
-        if (!ntpServerAddressResolved)
-        {
-          return;                                                         // если нет интернет подключения, отключаем будильник до тех пор, пока оно не будет восстановлено
-        }
-      }
 
-      //timeSynched = timeClient.update() || timeSynched;                   // если время хотя бы один раз было синхронизировано, продолжаем
-      if (timeClient.update()){
-         timeSynched = true;
-         #ifdef USE_MANUAL_TIME_SETTING // если ручное время тоже поддерживается, сохраняем туда реальное на случай отвалившегося NTP
-         manualTimeShift = localTimeZone.toLocal(timeClient.getEpochTime()) - millis() / 1000UL;
-         //TextTicker = to_string(manualTimeShift);
-         #endif
+        //timeSynched = timeClient.update() || timeSynched;                   // если время хотя бы один раз было синхронизировано, продолжаем
+        if (timeClient.update())
+        {
+           timeSynched = true;
+           #ifdef USE_MANUAL_TIME_SETTING // если ручное время тоже поддерживается, сохраняем туда реальное на случай отвалившегося NTP
+           manualTimeShift = localTimeZone.toLocal(timeClient.getEpochTime()) - millis() / 1000UL;
+           //TextTicker = to_string(manualTimeShift);
+           #endif
+        }
       }
-}
       #endif
       
       if (!timeSynched)                                                   // если время не было синхронизиировано ни разу, отключаем будильник до тех пор, пока оно не будет синхронизировано
