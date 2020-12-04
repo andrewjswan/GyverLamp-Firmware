@@ -68,8 +68,8 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       loadingFlag = true;
       settChanged = true;
       eepromTimeout = millis();
-      FastLED.clear();
-      delay(1);
+      // FastLED.clear();
+      // delay(1);
       sendCurrent(inputBuffer);
       FastLED.setBrightness(modes[currentMode].Brightness);
 
@@ -314,6 +314,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       }
       #endif
     }
+
     else if (!strncmp_P(inputBuffer, PSTR("GBR"), 3)) // выставляем общую яркость для всех эффектов без сохранения в EEPROM, если приложение присылает такую строку
     {
       memcpy(buff, &inputBuffer[3], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 4
@@ -323,7 +324,8 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       }
       FastLED.setBrightness(ALLbri);
       loadingFlag = true;
-    }    
+    }
+
     else if (!strncmp_P(inputBuffer, PSTR("LIST"), 4)) // передача списка эффектов по запросу от приложения (если поддерживается приложением)
     {
        memcpy(buff, &inputBuffer[4], strlen(inputBuffer));  // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 5
@@ -351,7 +353,8 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
              break;
            }
          }
-    }    
+    }
+
     else
     {
       inputBuffer[0] = '\0';

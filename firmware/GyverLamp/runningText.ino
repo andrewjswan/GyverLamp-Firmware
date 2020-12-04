@@ -80,7 +80,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   if (thisTime % 60U == 0U)
   {
     needToPrint = true;
-    letterColor = CRGB::Red;
+    letterColor = CRGB::White;                              // Белым!
   }
   #endif
 
@@ -133,7 +133,7 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   {
     lastTimePrinted = thisTime;
     char stringTime[10U];                                   // буффер для выводимого текста, его длина должна быть НЕ МЕНЬШЕ, чем длина текста + 1
-    sprintf_P(stringTime, PSTR("-> %u:%02u"), (uint8_t)((thisTime - thisTime % 60U) / 60U), (uint8_t)(thisTime % 60U));
+    sprintf_P(stringTime, PSTR("* %u:%02u *"), (uint8_t)((thisTime - thisTime % 60U) / 60U), (uint8_t)(thisTime % 60U));
     loadingFlag = true;
     FastLED.setBrightness(getBrightnessForPrintTime(thisTime, ONflag));
     delay(1);
