@@ -50,6 +50,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
     {
       sendCurrent(inputBuffer);
     }
+
 #if defined(GENERAL_DEBUG) || defined(USE_IOS_APP)
     else if (!strncmp_P(inputBuffer, PSTR("DEB"), 3))
     {
@@ -61,7 +62,8 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
         strcpy_P(inputBuffer, PSTR("OK --:--"));
         #endif
     }
-#endif    
+#endif
+
     else if (!strncmp_P(inputBuffer, PSTR("EFF"), 3))
     {
       EepromManager::SaveModesSettings(&currentMode, modes);
@@ -301,7 +303,8 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
     #ifdef OTA
     else if (!strncmp_P(inputBuffer, PSTR("OTA"), 3))
     {
-      if (espMode == 1U){// && otaManager.RequestOtaUpdate()){ по идее, нужен положительный ответ от менеджера
+      //if (espMode == 1U) пускай обновление работает даже в режиме точки доступа
+      // && otaManager.RequestOtaUpdate()){ по идее, нужен положительный ответ от менеджера
         otaManager.RequestOtaUpdate(); // но из-за двойного запроса нихрена не работает
         delay(70);
         //if (otaManager.RequestOtaUpdate()) //по идее, нужен положительный ответ от менеджера
@@ -315,9 +318,9 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
         }
         else
           showWarning(CRGB::Red, 2000U, 500U);                     // мигание красным цветом 2 секунды (ошибка)
-      }
-      else
-        showWarning(CRGB::Red, 2000U, 500U);                     // мигание красным цветом 2 секунды (ошибка)
+      //}
+      //else
+      //  showWarning(CRGB::Red, 2000U, 500U);                     // мигание красным цветом 2 секунды (ошибка)
     }
     #endif // OTA
 
@@ -579,12 +582,6 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
         String str = (BUFF.length() > 4) ? BUFF.substring(4, BUFF.length()) : "";
         str.toCharArray(TextTicker, str.length() + 1);
       #endif // defined(USE_SECRET_COMMANDS) || defined(USE_MANUAL_TIME_SETTING)
-    }
-
-    else if (!strncmp_P(inputBuffer, PSTR("MSG"), 3)) {
-      String str = (BUFF.length() > 4) ? BUFF.substring(4, BUFF.length()) : "";
-      str.toCharArray(TextTicker, str.length() + 1);
-      printMessage();
     }
 
     else if (!strncmp_P(inputBuffer, PSTR("DRW"), 3)) {

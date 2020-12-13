@@ -34,7 +34,7 @@ void timeTick()
     {
       #ifdef USE_NTP
       if (espMode == 1U)
-      { 
+      {
         if (!timeSynched)
         {
           if (millis() - lastResolveTryMoment >= RESOLVE_INTERVAL || lastResolveTryMoment == 0)
@@ -102,7 +102,7 @@ void timeTick()
           dawnColorMinus1 = dawnCounter > 0 ? dawnColor : dawnColorMinus1;
           dawnColor = CHSV(map(dawnPosition, 0, 255, 10, 35),
                            map(dawnPosition, 0, 255, 255, 170),
-                           map(dawnPosition, 0, 255, 10, DAWN_BRIGHT));
+                           map(dawnPosition, 0, 255, 2, DAWN_BRIGHT));
           dawnCounter++;
           // fill_solid(leds, NUM_LEDS, dawnColor);
           for (uint16_t i = 0U; i < NUM_LEDS; i++)
