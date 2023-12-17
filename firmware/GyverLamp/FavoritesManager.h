@@ -83,17 +83,22 @@ class FavoritesManager
       uint8_t* currentMode,
       bool* loadingFlag
       //#ifdef USE_NTP
-      #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING)
+      #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING) || defined(GET_TIME_FROM_PHONE)
       , bool* dawnFlag
+      #endif
+      #ifdef RANDOM_SETTINGS_IN_CYCLE_MODE
+      , uint8_t* random_on
+      , uint8_t* selectedSettings
       #endif
     )
     {
       if (FavoritesRunning == 0 ||
           !*ONflag                                          // лампа не переключается на следующий эффект при выключенной матрице
           //#ifdef USE_NTP
-          #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING)
+          #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING) || defined(GET_TIME_FROM_PHONE)
           || *dawnFlag                                      // лампа не переключается на следующий эффект при включенном будильнике
           #endif
+          || *currentMode == EFF_WHITE_COLOR && FavoriteModes[EFF_WHITE_COLOR] == 0U // лампа не переключается на следующий эффект, если выбран режим Белый свет, и он не в списке режима Цикл
       )
       {
         return false;
@@ -110,6 +115,10 @@ class FavoritesManager
         *currentMode = getNextFavoriteMode(currentMode);
         *loadingFlag = true;
         nextModeAt = getNextTime();
+
+        #ifdef RANDOM_SETTINGS_IN_CYCLE_MODE
+          if (*random_on) *selectedSettings = 1U;
+        #endif //RANDOM_SETTINGS_IN_CYCLE_MODE
 
         #ifdef GENERAL_DEBUG
         LOG.printf_P(PSTR("Переключение на следующий избранный режим: %d\n\n"), (*currentMode));

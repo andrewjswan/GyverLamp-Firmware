@@ -40,6 +40,19 @@ void parseUDP()
   }
 }
 
+void updateSets()
+{
+      loadingFlag = true;
+      settChanged = true;
+      eepromTimeout = millis();
+
+      #if (USE_MQTT)
+      if (espMode == 1U)
+      {
+        MqttManager::needToPublish = true;
+      }
+      #endif
+}
 
 void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutput)
 {
@@ -48,45 +61,57 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
 
     if (!strncmp_P(inputBuffer, PSTR("GET"), 3))
     {
+      #ifdef GET_TIME_FROM_PHONE
+      if (!timeSynched || !(ntpServerAddressResolved && espMode == 1U) && manualTimeShift + millis() / 1000UL > phoneTimeLastSync + GET_TIME_FROM_PHONE * 60U)
+      {// если прошло более 5 минут (GET_TIME_FROM_PHONE 5U), значит, можно парсить время из строки GET
+        if (BUFF.length() > 7U){ // пускай будет хотя бы 7
+          memcpy(buff, &inputBuffer[4], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 5
+          phoneTimeLastSync = (time_t)atoi(buff);
+          manualTimeShift = phoneTimeLastSync - millis() / 1000UL;
+          #ifdef WARNING_IF_NO_TIME
+            noTimeClear();
+          #endif // WARNING_IF_NO_TIME  
+          timeSynched = true;
+          #if defined(PHONE_N_MANUAL_TIME_PRIORITY) && defined(USE_NTP)
+            stillUseNTP = false;
+          #endif
+        }
+      }
+      #endif // GET_TIME_FROM_PHONE
       sendCurrent(inputBuffer);
     }
-
-#if defined(GENERAL_DEBUG) || defined(USE_IOS_APP)
+#if defined(GENERAL_DEBUG) || defined(USE_OLD_IOS_APP)
     else if (!strncmp_P(inputBuffer, PSTR("DEB"), 3))
     {
         //#ifdef USE_NTP
-        #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING)
+        #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING) || defined(GET_TIME_FROM_PHONE)
         getFormattedTime(inputBuffer);
         sprintf_P(inputBuffer, PSTR("OK %s"), inputBuffer);
         #else
         strcpy_P(inputBuffer, PSTR("OK --:--"));
         #endif
     }
-#endif
-
+#endif    
     else if (!strncmp_P(inputBuffer, PSTR("EFF"), 3))
     {
       EepromManager::SaveModesSettings(&currentMode, modes);
       memcpy(buff, &inputBuffer[3], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 4
       currentMode = (uint8_t)atoi(buff);
-      loadingFlag = true;
-      settChanged = true;
-      eepromTimeout = millis();
+      updateSets();
+      sendCurrent(inputBuffer);
       //FastLED.clear();
       //delay(1);
-      sendCurrent(inputBuffer);
-      FastLED.setBrightness(modes[currentMode].Brightness);
-
-      #if (USE_MQTT)
-      if (espMode == 1U)
-      {
-        MqttManager::needToPublish = true;
-      }
-      #endif
 
       #ifdef USE_BLYNK_PLUS
       updateRemoteBlynkParams();
       #endif
+
+      #ifdef RANDOM_SETTINGS_IN_CYCLE_MODE
+        if (random_on && FavoritesManager::FavoritesRunning)
+          selectedSettings = 1U;
+      #endif //RANDOM_SETTINGS_IN_CYCLE_MODE
+      
+      FastLED.setBrightness(modes[currentMode].Brightness);
     }
 
     else if (!strncmp_P(inputBuffer, PSTR("BRI"), 3))
@@ -94,7 +119,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       memcpy(buff, &inputBuffer[3], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 4
       modes[currentMode].Brightness = constrain(atoi(buff), 1, 255);
       FastLED.setBrightness(modes[currentMode].Brightness);
-      loadingFlag = true;
+      //loadingFlag = true; //не хорошо делать перезапуск эффекта после изменения яркости, но в некоторых эффектах от чётности яркости мог бы зависеть внешний вид
       settChanged = true;
       eepromTimeout = millis();
       sendCurrent(inputBuffer);
@@ -115,18 +140,8 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
     {
       memcpy(buff, &inputBuffer[3], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 4
       modes[currentMode].Speed = atoi(buff);
-      loadingFlag = true;
-      settChanged = true;
-      eepromTimeout = millis();
+      updateSets();
       sendCurrent(inputBuffer);
-
-      #if (USE_MQTT)
-      if (espMode == 1U)
-      {
-        MqttManager::needToPublish = true;
-      }
-      #endif
-
       #ifdef USE_BLYNK_PLUS
       updateRemoteBlynkParams();
       #endif
@@ -136,60 +151,55 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
     {
       memcpy(buff, &inputBuffer[3], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 4
       modes[currentMode].Scale = atoi(buff);
-      loadingFlag = true;
-      settChanged = true;
-      eepromTimeout = millis();
+      updateSets();
       sendCurrent(inputBuffer);
-
-      #if (USE_MQTT)
-      if (espMode == 1U)
-      {
-        MqttManager::needToPublish = true;
-      }
-      #endif
-
-      #ifdef USE_BLYNK_PLUS
-      updateRemoteBlynkParams();
-      #endif
-      }
-
-    else if (!strncmp_P(inputBuffer, PSTR("P_ON"), 4))
-    {
-      ONflag = true;
-      loadingFlag = true;
-      settChanged = true;
-      eepromTimeout = millis();
-      changePower();
-      sendCurrent(inputBuffer);
-
-      #if (USE_MQTT)
-      if (espMode == 1U)
-      {
-        MqttManager::needToPublish = true;
-      }
-      #endif
       #ifdef USE_BLYNK_PLUS
       updateRemoteBlynkParams();
       #endif
     }
 
+    else if (!strncmp_P(inputBuffer, PSTR("P_ON"), 4))
+    {
+      if (dawnFlag) {
+        manualOff = true; 
+        dawnFlag = false;
+        sendCurrent(inputBuffer);
+      }
+      else {
+        ONflag = true;
+        updateSets();
+        changePower();
+        sendCurrent(inputBuffer);
+        #ifdef USE_BLYNK_PLUS
+        updateRemoteBlynkParams();
+        #endif
+      }  
+    }
+
     else if (!strncmp_P(inputBuffer, PSTR("P_OFF"), 5))
     {
-      ONflag = false;
-      settChanged = true;
-      eepromTimeout = millis();
-      changePower();
-      sendCurrent(inputBuffer);
-
-      #if (USE_MQTT)
-      if (espMode == 1U)
-      {
-        MqttManager::needToPublish = true;
+      if (dawnFlag) {
+        manualOff = true; 
+        dawnFlag = false;
+        sendCurrent(inputBuffer);
       }
-      #endif
-      #ifdef USE_BLYNK_PLUS
-      updateRemoteBlynkParams();
-      #endif
+      else {
+        ONflag = false;
+        settChanged = true;
+        eepromTimeout = millis();
+        changePower();
+        sendCurrent(inputBuffer);
+
+        #if (USE_MQTT)
+        if (espMode == 1U)
+        {
+          MqttManager::needToPublish = true;
+        }
+        #endif
+        #ifdef USE_BLYNK_PLUS
+        updateRemoteBlynkParams();
+        #endif
+      }
     }
 
     else if (!strncmp_P(inputBuffer, PSTR("ALM_"), 4)) { // сокращаем GET и SET для ускорения регулярного цикла
@@ -241,17 +251,46 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       }
       #endif
     }
-
+    
     else if (!strncmp_P(inputBuffer, PSTR("DISCOVER"), 8))  // обнаружение приложением модуля esp в локальной сети
     {
-      if (espMode == 1U)                                    // работает только в режиме WiFi клиента
+      if (espMode == 1U)                                    // работает только в режиме WiFi клиента. интересно, зачем было запрещать обнаружение точки доступа?
       {
-        sprintf_P(inputBuffer, PSTR("IP %u.%u.%u.%u:%u"),
+        #ifdef SEND_LAMP_NAME_TO_APP
+          sprintf_P(inputBuffer, PSTR("IP %u.%u.%u.%u:%u:%s"),
+          WiFi.localIP()[0],
+          WiFi.localIP()[1],
+          WiFi.localIP()[2],
+          WiFi.localIP()[3],
+          ESP_UDP_PORT,
+          AP_NAME);
+        #else
+          sprintf_P(inputBuffer, PSTR("IP %u.%u.%u.%u:%u"),
           WiFi.localIP()[0],
           WiFi.localIP()[1],
           WiFi.localIP()[2],
           WiFi.localIP()[3],
           ESP_UDP_PORT);
+        #endif
+      }
+      else
+      {
+        #ifdef SEND_LAMP_NAME_TO_APP
+          sprintf_P(inputBuffer, PSTR("IP %u.%u.%u.%u:%u:%s"),
+          AP_STATIC_IP[0],
+          AP_STATIC_IP[1],
+          AP_STATIC_IP[2],
+          AP_STATIC_IP[3],
+          ESP_UDP_PORT,
+          AP_NAME);
+        #else
+          sprintf_P(inputBuffer, PSTR("IP %u.%u.%u.%u:%u"),
+          AP_STATIC_IP[0],
+          AP_STATIC_IP[1],
+          AP_STATIC_IP[2],
+          AP_STATIC_IP[3],
+          ESP_UDP_PORT);
+        #endif
       }
     }
 
@@ -266,6 +305,13 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
 
         memcpy(buff, &inputBuffer[12], strlen(inputBuffer));  // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 13
         TimerManager::TimeToFire = millis() + strtoull(buff, &endToken, 10) * 1000;
+
+        #if defined(BUTTON_CAN_SET_SLEEP_TIMER) && defined(ESP_USE_BUTTON)
+          if (TimerManager::TimerRunning){
+            button_sleep_time = constrain(strtoull(buff, &endToken, 10) / 60, 1 , 255);
+            EepromManager::Save_button_sleep_time ( &button_sleep_time );
+          }
+        #endif // #if defined(BUTTON_CAN_SET_SLEEP_TIMER) && defined(ESP_USE_BUTTON)
 
         TimerManager::TimerHasFired = false;
         sendTimer(inputBuffer);
@@ -332,7 +378,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
         EepromManager::SaveButtonEnabled(&buttonEnabled);
         sendCurrent(inputBuffer);
       }
-      else if (strstr_P(inputBuffer, PSTR("OFF")) - inputBuffer == 4)
+      else// if (strstr_P(inputBuffer, PSTR("OFF")) - inputBuffer == 4)
       {
         buttonEnabled = false;
         EepromManager::SaveButtonEnabled(&buttonEnabled);
@@ -347,7 +393,6 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       }
       #endif
     }
-
     else if (!strncmp_P(inputBuffer, PSTR("GBR"), 3)) // выставляем общую яркость для всех эффектов без сохранения в EEPROM, если приложение присылает такую строку
     {
       memcpy(buff, &inputBuffer[3], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 4
@@ -357,8 +402,47 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
       }
       FastLED.setBrightness(ALLbri);
       loadingFlag = true;
-    }    
-
+    }
+    #ifdef USE_RANDOM_SETS_IN_APP
+    else if (!strncmp_P(inputBuffer, PSTR("RND_"), 4)) // управление включением случайных настроек
+    {
+       if (!strncmp_P(inputBuffer, PSTR("RND_0"), 5)) // вернуть настройки по умолчанию текущему эффекту
+       {
+         setModeSettings();
+         updateSets();
+         sendCurrent(inputBuffer);
+       }
+       else if (!strncmp_P(inputBuffer, PSTR("RND_1"), 5)) // выбрать случайные настройки текущему эффекту
+       { // раньше была идея, что будут числа RND_1, RND_2, RND_3 - выбор из предустановленных настроек, но потом всё свелось к единственному варианту случайных настроек
+         selectedSettings = 1U;
+         updateSets();
+       }
+       else if (!strncmp_P(inputBuffer, PSTR("RND_Z"), 5)) // вернуть настройки по умолчанию всем эффектам
+       {
+         restoreSettings();
+         selectedSettings = 0U;
+         updateSets();
+         sendCurrent(inputBuffer);
+         #ifdef USE_BLYNK
+         updateRemoteBlynkParams();
+         #endif
+       }
+       #ifdef RANDOM_SETTINGS_IN_CYCLE_MODE
+       else if (!strncmp_P(inputBuffer, PSTR("RND_ON"), 6)) // включить выбор случайных настроек в режиме Цикл
+       {
+         random_on = 1U;
+         EepromManager::Save_random_on ( &random_on );
+         showWarning(CRGB::Blue, 2000U, 500U);                    // мигание синим цветом 2 секунды
+       }
+       else if (!strncmp_P(inputBuffer, PSTR("RND_OFF"), 7)) // отключить выбор случайных настроек в режиме Цикл
+       {
+         random_on = 0U;
+         EepromManager::Save_random_on ( &random_on );
+         showWarning(CRGB::Blue, 2000U, 500U);                    // мигание синим цветом 2 секунды
+       }
+       #endif //#ifdef RANDOM_SETTINGS_IN_CYCLE_MODE
+    }
+    #endif //#ifdef USE_RANDOM_SETS_IN_APP
     else if (!strncmp_P(inputBuffer, PSTR("LIST"), 4)) // передача списка эффектов по запросу от приложения (если поддерживается приложением)
     {
        memcpy(buff, &inputBuffer[4], strlen(inputBuffer));  // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 5
@@ -384,15 +468,9 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
              #ifdef USE_DEFAULT_SETTINGS_RESET
              // и здесь же после успешной отправки списка эффектов делаем сброс настроек эффектов на значения по умолчанию
              restoreSettings();
-             loadingFlag = true;
-             settChanged = true;
-             eepromTimeout = millis();
-
-             #if (USE_MQTT)
-             if (espMode == 1U)
-             {
-               MqttManager::needToPublish = true;
-             }
+             updateSets();
+             #ifdef USE_BLYNK_PLUS
+             updateRemoteBlynkParams();
              #endif
              #endif
 
@@ -400,7 +478,6 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
            }
          }
     }
-
     else if (!strncmp_P(inputBuffer, PSTR("TXT"), 3)){     // Принимаем текст для бегущей строки
       #if defined(USE_SECRET_COMMANDS) || defined(USE_MANUAL_TIME_SETTING) // вкорячиваем ручную синхранизацию времени пока что сюда. пока нет другой функции в приложении...
         if (!strncmp_P(inputBuffer, PSTR("TXT-time="), 9) && (BUFF.length() > 15)){ 
@@ -413,7 +490,16 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
             uint8_t mtD = BUFF.substring(15, 16).toInt();
             if (mtH < 24U && mtM < 60U && mtD < 8U && mtD > 0U){
               manualTimeShift = (((3650UL + mtD) * 24UL + mtH) * 60UL + mtM) * 60UL - millis() / 1000UL; // 3650 дней (521 полная неделя + 3 дня для сдвига на понедельник???)
+              #ifdef GET_TIME_FROM_PHONE
+                phoneTimeLastSync = manualTimeShift + millis() / 1000UL;
+              #endif
+              #ifdef WARNING_IF_NO_TIME
+                noTimeClear();
+              #endif
               timeSynched = true;
+              #if defined(PHONE_N_MANUAL_TIME_PRIORITY) && defined(USE_NTP)
+                stillUseNTP = false;
+              #endif
               showWarning(CRGB::Blue, 2000U, 500U);     // мигание голубым цветом 2 секунды (2 раза) - время установлено
             }
             else
@@ -465,15 +551,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
           }
           else if (!strncmp_P(inputBuffer, PSTR("TXT-reset=effects"), 17)){
             restoreSettings();
-            loadingFlag = true;
-            settChanged = true;
-            eepromTimeout = millis();
-            #if (USE_MQTT)
-            if (espMode == 1U)
-            {
-              MqttManager::needToPublish = true;
-            }
-            #endif
+            updateSets();
             showWarning(CRGB::Blue, 2000U, 500U);                    // мигание синим цветом 2 секунды
             #ifdef USE_BLYNK
             updateRemoteBlynkParams();
@@ -556,6 +634,13 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
             memcpy(buff, &inputBuffer[10], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 11
             uint16_t temp = atoi(buff);
             if (ONflag && temp) {
+              #if defined(BUTTON_CAN_SET_SLEEP_TIMER) && defined(ESP_USE_BUTTON)
+                if (TimerManager::TimerRunning){
+                  button_sleep_time = constrain(temp, 1U , 255U);
+                  EepromManager::Save_button_sleep_time ( &button_sleep_time );
+                }
+              #endif // #if defined(BUTTON_CAN_SET_SLEEP_TIMER) && defined(ESP_USE_BUTTON)
+              
               TimerManager::TimeToFire = millis() + temp * 60UL * 1000UL;
               TimerManager::TimerRunning = true;
               showWarning(CRGB::Blue, 2000U, 500U);                    // мигание синим цветом 2 секунды
@@ -570,6 +655,35 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
               #endif                
             }
           }
+          #ifdef RANDOM_SETTINGS_IN_CYCLE_MODE
+          else if (!strncmp_P(inputBuffer, PSTR("TXT-random="), 11)){
+            if (strstr_P(inputBuffer, PSTR("on")) - inputBuffer == 11)
+            {
+              random_on = 1U;
+              EepromManager::Save_random_on ( &random_on );
+              showWarning(CRGB::Blue, 2000U, 500U);                    // мигание синим цветом 2 секунды
+            }
+            else if (strstr_P(inputBuffer, PSTR("off")) - inputBuffer == 11)
+            {
+              random_on = 0U;
+              EepromManager::Save_random_on ( &random_on );
+              showWarning(CRGB::Blue, 2000U, 500U);                    // мигание синим цветом 2 секунды
+            }
+          }
+          #endif //#ifdef RANDOM_SETTINGS_IN_CYCLE_MODE
+          #if defined(off_BUTTON_CAN_SET_SLEEP_TIMER) && defined(ESP_USE_BUTTON)
+          else if (!strncmp_P(inputBuffer, PSTR("TXT-sleep="), 10)){
+            memcpy(buff, &inputBuffer[10], strlen(inputBuffer));   // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 11
+            int16_t temp = atoi(buff);
+            if (temp > 0 && temp <=255) {
+              button_sleep_time = temp;
+              EepromManager::Save_button_sleep_time ( &button_sleep_time );
+              showWarning(CRGB::Blue, 2000U, 500U);                    // мигание синим цветом 2 секунды
+            }
+            else
+              showWarning(CRGB::Red, 2000U, 500U);                     // мигание красным цветом 2 секунды (ошибка)
+          }
+          #endif //#if defined(BUTTON_CAN_SET_SLEEP_TIMER) && defined(ESP_USE_BUTTON)
         #endif // USE_SECRET_COMMANDS
         else
         {  
@@ -583,47 +697,37 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
         str.toCharArray(TextTicker, str.length() + 1);
       #endif // defined(USE_SECRET_COMMANDS) || defined(USE_MANUAL_TIME_SETTING)
     }
-
-    else if (!strncmp_P(inputBuffer, PSTR("MSG"), 3)) {
-      String str = (BUFF.length() > 4) ? BUFF.substring(4, BUFF.length()) : "";
-      str.toCharArray(TextTicker, str.length() + 1);
-      printMessage();
-    }
-
     else if (!strncmp_P(inputBuffer, PSTR("DRW"), 3)) {
       drawPixelXY((int8_t)getValue(BUFF, ';', 1).toInt(), (int8_t)getValue(BUFF, ';', 2).toInt(), DriwingColor);
       FastLED.show();
     }
-
     else if (!strncmp_P(inputBuffer, PSTR("CLR"), 3)) {
       FastLED.clear();
       FastLED.show();
     }
-
     else if (!strncmp_P(inputBuffer, PSTR("COL"), 3)) {
-      #ifdef USE_OLD_APP_FROM_KOTEYKA
-       DriwingColor = CRGB(getValue(BUFF, ';', 1).toInt(), getValue(BUFF, ';', 3).toInt(), getValue(BUFF, ';', 2).toInt());
-      #else
+      #ifdef USE_OLD_APP_FROM_KOTEYKA // (в версии 2.3... цвета были только в формате RGB)
        DriwingColor = CRGB(getValue(BUFF, ';', 1).toInt(), getValue(BUFF, ';', 2).toInt(), getValue(BUFF, ';', 3).toInt());
+      #else
+       DriwingColor = CRGB(getValue(BUFF, ';', 1).toInt(), getValue(BUFF, ';', 3).toInt(), getValue(BUFF, ';', 2).toInt());
       #endif
     }
-
     else if (!strncmp_P(inputBuffer, PSTR("DRAWO"), 5)) { // сокращаем OFF и ON для ускорения регулярного цикла
       if (!strncmp_P(inputBuffer, PSTR("DRAWON"), 6))
-       Painting = 1;
+        Painting = 1;
       else
-       Painting = 0;
-      FastLED.clear();
-      FastLED.show();
+        Painting = 0;
+        //FastLED.clear();
+        //FastLED.show();
     }
-
-#ifndef USE_OLD_APP_FROM_KOTEYKA
     else if (!strncmp_P(inputBuffer, PSTR("RESET"), 5)) { // сброс настроек WIFI по запросу от приложения
       wifiManager.resetSettings();
     }
+//#ifdef USE_OLD_APP_FROM_KOTEYKA // (в версии 2.3... были кнопки, чтобы сохранить настройки эффектов из приложения в лампу)
+//и в новых тоже появились
     else if (!strncmp_P(inputBuffer, PSTR("SETS"), 4)) // передача настроек эффектов по запросу от приложения (если поддерживается приложением)
     {
-      memcpy(buff, &inputBuffer[4], strlen(inputBuffer));  // взять подстроку, состоящую последних символов строки inputBuffer, начиная с символа 5
+      memcpy(buff, &inputBuffer[4], 1U);  // взять первую циферку из строки inputBuffer, начиная с символа 5
       switch (atoi(buff))      
       {
         case 1U: // SET
@@ -633,6 +737,12 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
             modes[eff].Brightness = getValue(buff, ';', 1).toInt();
             modes[eff].Speed = getValue(buff, ';', 2).toInt();
             modes[eff].Scale = getValue(buff, ';', 3).toInt();
+            if (eff == currentMode) {
+              updateSets();
+              #ifdef USE_BLYNK_PLUS
+              updateRemoteBlynkParams();
+              #endif
+            }
             break;
           }
         case 2U: // READ
@@ -648,8 +758,7 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
           }
       }
     }
-#endif
-
+//#endif // ifdef USE_OLD_APP_FROM_KOTEYKA
     else
     {
       inputBuffer[0] = '\0';
@@ -687,7 +796,7 @@ void sendCurrent(char *outputBuffer)
   sprintf_P(outputBuffer, PSTR("%s %u"), outputBuffer, (uint8_t)buttonEnabled);
 
   //#ifdef USE_NTP
-  #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING)
+  #if defined(USE_NTP) || defined(USE_MANUAL_TIME_SETTING) || defined(GET_TIME_FROM_PHONE)
   char timeBuf[9];
   getFormattedTime(timeBuf);
   sprintf_P(outputBuffer, PSTR("%s %s"), outputBuffer, timeBuf);

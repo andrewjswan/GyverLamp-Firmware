@@ -263,6 +263,7 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
       }
     }
     yield();
+    delay(1); // trying to fix disconnections
   }
 
   server.reset();
@@ -335,6 +336,7 @@ uint8_t WiFiManager::waitForConnectResult() {
         keepConnecting = false;
       }
       delay(100);
+      ESP.wdtFeed();
     }
     return status;
   }
