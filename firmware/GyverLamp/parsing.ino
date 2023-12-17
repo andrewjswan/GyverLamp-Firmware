@@ -697,6 +697,11 @@ void processInputBuffer(char *inputBuffer, char *outputBuffer, bool generateOutp
         str.toCharArray(TextTicker, str.length() + 1);
       #endif // defined(USE_SECRET_COMMANDS) || defined(USE_MANUAL_TIME_SETTING)
     }
+    else if (!strncmp_P(inputBuffer, PSTR("MSG"), 3)) {
+      String str = (BUFF.length() > 4) ? BUFF.substring(4, BUFF.length()) : "";
+      str.toCharArray(TextTicker, str.length() + 1);
+      printMessage();
+    }
     else if (!strncmp_P(inputBuffer, PSTR("DRW"), 3)) {
       drawPixelXY((int8_t)getValue(BUFF, ';', 1).toInt(), (int8_t)getValue(BUFF, ';', 2).toInt(), DriwingColor);
       FastLED.show();

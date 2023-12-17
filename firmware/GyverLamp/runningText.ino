@@ -152,6 +152,24 @@ void printTime(uint32_t thisTime, bool onDemand, bool ONflag) // периоди�
   #endif
 }
 
+void printMessage() // вывести полученное сообщение
+{
+  if (currentMode == EFF_TEXT)                                          // если эффект - вывод строки то уходим
+  {
+    return;
+  }
+
+  loadingFlag = true;
+  FastLED.setBrightness(getBrightnessForPrintTime(thisTime, ONflag));
+  delay(1);
+
+  while (!fillString(TextTicker, CRGB::White, true))                   // Наверное стоит прерывать показ при переходе на другой эффект или еще что ...
+  { 
+    delay(1); 
+    ESP.wdtFeed(); 
+  }
+  loadingFlag = true;
+}
 
 uint8_t getBrightnessForPrintTime(uint32_t thisTime, bool ONflag)     // определение яркости для вывода времени бегущей строкой в зависимости от ESP_MODE, USE_NTP, успешности синхронизации времени,
                                                                       // текущего времени суток, настроек дневного/ночного времени и того, включена ли сейчас матрица
