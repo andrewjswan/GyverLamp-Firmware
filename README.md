@@ -1,5 +1,13 @@
-![PROJECT_PHOTO](https://github.com/AlexGyver/GyverLamp/blob/master/proj_img.jpg)
+# Moved to ESPHome Matrix Lamp
+[![esphome_badge](https://img.shields.io/badge/ESPHome-Config-blue.svg)](https://esphome.io/)
+[![matrix-lamp_badge](https://img.shields.io/badge/Matrix-Lamp-orange.svg)](https://github.com/andrewjswan/matrix-lamp/)
+
+<br />
+<br />
+<br />
+
 # Крутая WiFi лампа на esp8266 своими руками
+![PROJECT_PHOTO](https://github.com/AlexGyver/GyverLamp/blob/master/proj_img.jpg)
 * [Описание проекта](#chapter-0)
 * [Папки проекта](#chapter-1)
 * [Схемы подключения](#chapter-2)
